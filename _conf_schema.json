@@ -1,0 +1,86 @@
+{
+  "data_port": {
+    "description": "HTTP 数据接收端口",
+    "type": "int",
+    "default": 7788
+  },
+  "baseline_days": {
+    "description": "基线收集天数",
+    "type": "int",
+    "default": 7
+  },
+  "baseline_mode": {
+    "description": "基线模式",
+    "type": "string",
+    "default": "sliding",
+    "options": [
+      "sliding",
+      "fixed"
+    ]
+  },
+  "check_interval": {
+    "description": "检测间隔（秒）",
+    "type": "int",
+    "default": 300
+  },
+  "quiet_hours_enabled": {
+    "description": "是否启用静默时段",
+    "type": "bool",
+    "default": true
+  },
+  "quiet_hours_start": {
+    "description": "静默时段开始时间",
+    "type": "string",
+    "default": "23:00"
+  },
+  "quiet_hours_end": {
+    "description": "静默时段结束时间",
+    "type": "string",
+    "default": "08:00"
+  },
+  "heart_rate_enabled": {
+    "description": "心率异常检测开关",
+    "type": "bool",
+    "default": true
+  },
+  "heart_rate_threshold": {
+    "description": "心率异常 z-score 阈值",
+    "type": "float",
+    "default": 2.0
+  },
+  "heart_rate_cooldown": {
+    "description": "心率告警冷却时间（小时）",
+    "type": "int",
+    "default": 4
+  },
+  "sleep_score_enabled": {
+    "description": "睡眠评分异常检测开关",
+    "type": "bool",
+    "default": true
+  },
+  "sleep_score_threshold": {
+    "description": "睡眠评分异常 z-score 阈值",
+    "type": "float",
+    "default": 1.5
+  },
+  "sleep_score_cooldown": {
+    "description": "睡眠评分告警冷却时间（小时）",
+    "type": "int",
+    "default": 8
+  },
+  "spo2_enabled": {
+    "description": "血氧异常检测开关",
+    "type": "bool",
+    "default": true
+  },
+  "spo2_threshold": {
+    "description": "血氧异常 z-score 阈值",
+    "type": "float",
+    "default": 2.0
+  },
+  "spo2_cooldown": {
+    "description": "血氧告警冷却时间（小时）",
+    "type": "int",
+    "default": 4
+  }
+}
