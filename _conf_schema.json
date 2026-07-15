@@ -1,4 +1,16 @@
 {
+  "llm_provider_id": {
+    "description": "LLM 提供商（留空则自动选择默认）",
+    "type": "string",
+    "default": "",
+    "_special": "select_provider"
+  },
+  "persona_id": {
+    "description": "人格设定（留空则使用 AstrBot 默认人格）",
+    "type": "string",
+    "default": "",
+    "_special": "select_persona"
+  },
   "data_port": {
     "description": "HTTP 数据接收端口",
     "type": "int",
