@@ -3,7 +3,9 @@ import sqlite3
 import json
 import math
 import os
+import shutil
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Dict, List, Optional, Any
 from aiohttp import web
 from astrbot.api.event import filter, AstrMessageEvent, MessageChain
@@ -12,7 +14,7 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api.provider import ProviderRequest
 
 
-@register("body_monitor", "ludan", "小米手环+体脂秤身体数据监测与主动关心", "v1.0.0")
+@register("body_monitor", "ludan", "小米手环+体脂秤身体数据监测与主动关心", "v1.1.0")
 class BodyMonitorPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)
@@ -51,8 +53,8 @@ class BodyMonitorPlugin(Star):
             }
         }
 
-        # 数据库
-        self.db_path = os.path.join(os.path.dirname(__file__), "body_monitor.db")
+        # 数据库：使用 AstrBot 推荐的插件数据目录，避免更新/重装插件时丢失数据
+        self.db_path = self._get_db_path()
         self._init_db()
 
         # 告警冷却记录
@@ -65,11 +67,80 @@ class BodyMonitorPlugin(Star):
         self.runner = None
         self.site = None
 
-        asyncio.create_task(self._start_server())
-        asyncio.create_task(self._start_periodic_check())
+        self._server_task = asyncio.create_task(self._start_server())
+        self._periodic_task = asyncio.create_task(self._start_periodic_check())
+
+    def _get_db_path(self) -> str:
+        """获取数据库文件路径，优先使用 AstrBot 的 plugin_data 目录。
+
+        会依次尝试：
+        1. AstrBot 官方插件数据目录（get_astrbot_plugin_data_path）
+        2. AstrBot 数据目录下的 plugin_data（get_astrbot_data_path）
+        3. 插件自身目录
+        4. 系统临时目录（最后兜底）
+        """
+        plugin_name = getattr(self, "name", "body_monitor")
+        candidates = []
+
+        # 1. 官方插件数据目录（v4.9.2+）
+        try:
+            from astrbot.core.utils.astrbot_path import get_astrbot_plugin_data_path
+            candidates.append(Path(get_astrbot_plugin_data_path()) / plugin_name)
+        except Exception:
+            pass
+
+        # 2. 数据目录 / plugin_data / <name>
+        try:
+            from astrbot.core.utils.astrbot_path import get_astrbot_data_path
+            candidates.append(Path(get_astrbot_data_path()) / "plugin_data" / plugin_name)
+        except Exception:
+            pass
+
+        # 3. 插件目录
+        try:
+            candidates.append(Path(os.path.dirname(__file__)))
+        except Exception:
+            pass
+
+        # 4. 临时目录兜底
+        candidates.append(Path(os.environ.get("TEMP", os.environ.get("TMP", "/tmp"))) / plugin_name)
+
+        last_error = None
+        old_db = Path(os.path.dirname(__file__)) / "body_monitor.db"
+
+        for data_dir in candidates:
+            try:
+                data_dir.mkdir(parents=True, exist_ok=True)
+                db_file = data_dir / "body_monitor.db"
+
+                # 尝试迁移旧数据库（插件目录 -> 新位置）
+                if old_db.exists() and not db_file.exists():
+                    try:
+                        shutil.move(str(old_db), str(db_file))
+                        logger.info(f"[BodyMonitor] Migrated old database to {db_file}")
+                    except Exception as e:
+                        logger.warning(f"[BodyMonitor] Failed to migrate old database: {e}")
+
+                # 测试是否真的能打开
+                conn = sqlite3.connect(str(db_file))
+                conn.close()
+                logger.info(f"[BodyMonitor] Database path resolved: {db_file}")
+                return str(db_file)
+            except Exception as e:
+                last_error = e
+                logger.debug(f"[BodyMonitor] DB path candidate failed {data_dir}: {e}")
+                continue
+
+        # 走到这里说明所有候选都不行，理论上不应该发生
+        raise RuntimeError(f"[BodyMonitor] Unable to resolve writable database path: {last_error}")
+
+    def _db_connect(self):
+        """确保数据库目录存在后建立连接。"""
+        Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
+        return sqlite3.connect(self.db_path)
 
     def _init_db(self):
-        conn = sqlite3.connect(self.db_path)
+        conn = self._db_connect()
         c = conn.cursor()
 
         c.execute("""
@@ -147,8 +218,11 @@ class BodyMonitorPlugin(Star):
         while True:
             try:
                 await self._periodic_check()
+            except asyncio.CancelledError:
+                logger.debug("[BodyMonitor] Periodic check cancelled")
+                break
             except Exception as e:
-                logger.error(f"[BodyMonitor] Periodic check error: {e}")
+                logger.error(f"[BodyMonitor] Periodic check error: {e}", exc_info=True)
             await asyncio.sleep(self.check_interval)
 
     async def _handle_health(self, request):
@@ -277,7 +351,7 @@ class BodyMonitorPlugin(Star):
         return result
 
     def _insert_raw_data(self, data: dict):
-        conn = sqlite3.connect(self.db_path)
+        conn = self._db_connect()
         c = conn.cursor()
         c.execute("""
             INSERT INTO raw_data 
@@ -351,7 +425,7 @@ class BodyMonitorPlugin(Star):
             self.alert_cooldown[metric] = datetime.now()
 
     def _calculate_baseline(self, metric: str) -> Optional[tuple]:
-        conn = sqlite3.connect(self.db_path)
+        conn = self._db_connect()
         c = conn.cursor()
 
         if self.baseline_mode == "sliding":
@@ -387,7 +461,7 @@ class BodyMonitorPlugin(Star):
         return (mean, std)
 
     def _is_baseline_ready(self) -> bool:
-        conn = sqlite3.connect(self.db_path)
+        conn = self._db_connect()
         c = conn.cursor()
         c.execute("SELECT COUNT(*) FROM raw_data")
         count = c.fetchone()[0]
@@ -397,7 +471,7 @@ class BodyMonitorPlugin(Star):
         return count >= min_records
 
     def _get_latest_metric(self, metric: str) -> Optional[float]:
-        conn = sqlite3.connect(self.db_path)
+        conn = self._db_connect()
         c = conn.cursor()
         c.execute(f"""
             SELECT {metric} FROM raw_data 
@@ -491,7 +565,7 @@ class BodyMonitorPlugin(Star):
         return fallbacks.get(metric, f"{metric_name}有点异常，注意身体哦~")
 
     def _get_today_context(self) -> dict:
-        conn = sqlite3.connect(self.db_path)
+        conn = self._db_connect()
         c = conn.cursor()
         today = datetime.now().strftime("%Y-%m-%d")
 
@@ -516,7 +590,7 @@ class BodyMonitorPlugin(Star):
         return context
 
     def _get_body_composition_context(self) -> dict:
-        conn = sqlite3.connect(self.db_path)
+        conn = self._db_connect()
         c = conn.cursor()
 
         today = datetime.now().strftime("%Y-%m-%d")
@@ -630,7 +704,7 @@ class BodyMonitorPlugin(Star):
                 logger.error(f"[BodyMonitor] Send error to {umo}: {e}")
 
     def _get_targets(self) -> List[str]:
-        conn = sqlite3.connect(self.db_path)
+        conn = self._db_connect()
         c = conn.cursor()
         c.execute("SELECT umo FROM targets")
         rows = c.fetchall()
@@ -638,7 +712,7 @@ class BodyMonitorPlugin(Star):
         return [r[0] for r in rows]
 
     def _record_alert(self, metric: str, value: float, mean: float, std: float, z_score: float, message: str):
-        conn = sqlite3.connect(self.db_path)
+        conn = self._db_connect()
         c = conn.cursor()
         c.execute("""
             INSERT INTO alerts (timestamp, metric, value, baseline_mean, baseline_std, z_score, llm_response)
@@ -666,7 +740,7 @@ class BodyMonitorPlugin(Star):
         else:
             umo = args[1]
 
-        conn = sqlite3.connect(self.db_path)
+        conn = self._db_connect()
         c = conn.cursor()
         try:
             c.execute("INSERT INTO targets (umo, created_at) VALUES (?, ?)", 
@@ -687,7 +761,7 @@ class BodyMonitorPlugin(Star):
             return
 
         umo = args[1]
-        conn = sqlite3.connect(self.db_path)
+        conn = self._db_connect()
         c = conn.cursor()
         c.execute("DELETE FROM targets WHERE umo = ?", (umo,))
         conn.commit()
@@ -711,7 +785,7 @@ class BodyMonitorPlugin(Star):
 
     @filter.command("body_status")
     async def cmd_status(self, event: AstrMessageEvent):
-        conn = sqlite3.connect(self.db_path)
+        conn = self._db_connect()
         c = conn.cursor()
 
         c.execute("SELECT COUNT(*) FROM raw_data")
@@ -793,7 +867,7 @@ class BodyMonitorPlugin(Star):
 
     @filter.command("body_alerts")
     async def cmd_alerts(self, event: AstrMessageEvent):
-        conn = sqlite3.connect(self.db_path)
+        conn = self._db_connect()
         c = conn.cursor()
         c.execute("""
             SELECT timestamp, metric, value, z_score, llm_response 
@@ -821,6 +895,15 @@ class BodyMonitorPlugin(Star):
         yield event.plain_result("✅ 测试消息已发送")
 
     async def terminate(self):
+        # 取消后台任务，避免重载/升级后旧实例继续运行
+        for task in (getattr(self, "_periodic_task", None), getattr(self, "_server_task", None)):
+            if task and not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+
         if self.site:
             await self.site.stop()
         if self.runner:

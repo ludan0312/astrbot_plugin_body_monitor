@@ -1,5 +1,7 @@
 # Body Monitor - AstrBot 身体数据监测插件
 
+**Version:** v1.1.0
+
 基于 Health Connect Webhook 方案，接收小米手环 + 小米体脂秤 S400 数据，进行基线计算和异常检测，触发 LLM 主动关心。
 
 ## 架构
@@ -17,23 +19,31 @@
 
 ## 安装
 
-1. 将本插件复制到 AstrBot 插件目录
-2. 安装依赖: `pip install -r requirements.txt`
-3. 在 AstrBot WebUI 中配置插件
+1. AstrBot WebUI → **插件管理** → 搜索 `Body Monitor` 安装，或上传本插件 zip
+2. 在 WebUI 中配置插件参数
+3. 使用 `/body_target_add here` 添加推送目标
 4. 重启 AstrBot
 
 ## 配置项
 
 | 配置项 | 说明 | 默认值 |
 |-------|------|-------|
-| `data_port` | HTTP 接收端口 | 7788 |
-| `targets` | 目标消息平台 | `[]` |
-| `baseline_days` | 基线收集天数 | 7 |
-| `baseline_mode` | 基线模式 | `sliding` |
-| `check_interval` | 检测间隔(秒) | 300 |
-| `quiet_hours` | 静默时段 | 23:00-08:00 |
-| `metrics` | 指标检测配置 | 见代码 |
-| `api_key` | AstrBot HTTP API Key | `""` |
+| `data_port` | HTTP 接收端口 | `7788` |
+| `baseline_days` | 基线收集天数 | `7` |
+| `baseline_mode` | 基线模式 (`sliding`/`fixed`) | `sliding` |
+| `check_interval` | 检测间隔（秒） | `300` |
+| `quiet_hours_enabled` | 是否启用静默时段 | `true` |
+| `quiet_hours_start` | 静默开始时间 | `23:00` |
+| `quiet_hours_end` | 静默结束时间 | `08:00` |
+| `heart_rate_enabled` | 心率异常检测开关 | `true` |
+| `heart_rate_threshold` | 心率异常 z-score 阈值 | `2.0` |
+| `heart_rate_cooldown` | 心率告警冷却（小时） | `4` |
+| `sleep_score_enabled` | 睡眠评分异常检测开关 | `true` |
+| `sleep_score_threshold` | 睡眠评分异常 z-score 阈值 | `1.5` |
+| `sleep_score_cooldown` | 睡眠评分告警冷却（小时） | `8` |
+| `spo2_enabled` | 血氧异常检测开关 | `true` |
+| `spo2_threshold` | 血氧异常 z-score 阈值 | `2.0` |
+| `spo2_cooldown` | 血氧告警冷却（小时） | `4` |
 
 ## 手机端配置
 
@@ -45,11 +55,18 @@
 
 ## 命令
 
+### 数据查询
 - `/body_status` - 查看监测状态（含体脂秤数据）
 - `/body_baseline` - 查看基线统计
 - `/body_body` - 查看体脂秤身体成分数据
 - `/body_alerts` - 查看最近告警
 - `/body_test` - 测试发送关心消息
+
+### 目标平台管理
+- `/body_target_add here` - 将当前会话添加为推送目标
+- `/body_target_add <UMO>` - 添加指定 UMO 为推送目标
+- `/body_target_remove <UMO>` - 移除目标
+- `/body_target_list` - 列出所有目标
 
 ## 数据解析
 
@@ -68,8 +85,7 @@
 
 映射外部端口 `7788` 到 Unraid 的 `7788` 端口。
 
-## 部署指南链接
-如果你还没有部署配套服务，可参考以下通用 Linux 部署指南：
+## 部署指南
 
 - [Body Monitor 身体数据监测插件 – 通用部署指南](http://ludanhome.online:19192/?p=319)
 
@@ -79,3 +95,4 @@
 - 静默时段（默认 23:00-08:00）不会发送关心消息
 - 同一指标有冷却时间，避免刷屏
 - 体脂秤数据需要先在小米运动健康中同步到 Health Connect
+- 插件数据存储在 AstrBot 数据目录下，卸载/重装不会丢失历史数据
