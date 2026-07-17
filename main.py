@@ -14,7 +14,7 @@ from astrbot.api.star import Context, Star, register
 from astrbot.api.provider import ProviderRequest
 
 
-@register("body_monitor", "ludan", "小米手环+体脂秤身体数据监测与主动关心", "v1.2.0")
+@register("body_monitor", "ludan", "小米手环+体脂秤身体数据监测与主动关心", "v1.2.1")
 class BodyMonitorPlugin(Star):
     def __init__(self, context: Context, config: dict = None):
         super().__init__(context)

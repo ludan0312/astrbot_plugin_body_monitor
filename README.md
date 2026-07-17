@@ -1,6 +1,6 @@
 # Body Monitor - AstrBot 身体数据监测插件
 
-**Version:** v1.2.0
+**Version:** v1.2.1
 
 基于 Health Connect Webhook 方案，接收小米手环 + 小米体脂秤 S400 数据，进行基线计算和异常检测，触发 LLM 主动关心。
 
@@ -75,7 +75,10 @@
 
 > 以上命令会触发 LLM 生成自然语言回复，数据自动注入到 LLM 上下文中。如果配置了 RVC/TTS，会自动输出语音。
 
-### 目标平台管理
+### 目标会话管理（全平台）
+
+插件通过 AstrBot 统一会话标识（UMO）收发消息，**不限平台**：QQ / OneBot、Telegram、Discord、飞书、钉钉、企微、微信生态、KOOK、Slack 等均可用。在对应平台的对话里执行：
+
 - `/body_target_add here` - 将当前会话添加为推送目标
 - `/body_target_add <UMO>` - 添加指定 UMO 为推送目标
 - `/body_target_remove <UMO>` - 移除目标
