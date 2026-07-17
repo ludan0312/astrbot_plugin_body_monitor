@@ -1,6 +1,6 @@
 # Body Monitor - AstrBot 身体数据监测插件
 
-**Version:** v1.1.0
+**Version:** v1.2.0
 
 基于 Health Connect Webhook 方案，接收小米手环 + 小米体脂秤 S400 数据，进行基线计算和异常检测，触发 LLM 主动关心。
 
