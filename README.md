@@ -5,7 +5,7 @@
 基于 Health Connect Webhook 方案，接收小米手环 + 小米体脂秤 S400 数据，进行基线计算和异常检测，触发 LLM 主动关心。
 
 ### 中国大陆设备
-- [MiHealth - 小米运动健康 AstrBot 插件](http://ludanhome.online:19192/?p=324)
+- [MiHealth - 小米运动健康 AstrBot 插件](https://github.com/ludan0312/astrbot_plugin_mi_health)
 - [部署指南](http://ludanhome.online:19192/?p=324)
 
 ## 架构
